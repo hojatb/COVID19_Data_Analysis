@@ -60,4 +60,6 @@ This application consist of three python files that must be copied into root dir
 Hojat Behrooz 
 - **hojatb@gmail.com** 
 
+
+for more details about the program you can read file "Program documatation.docx" in main dorectory.
  
