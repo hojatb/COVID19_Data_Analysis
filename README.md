@@ -1,0 +1,2 @@
+# COVID19_SIMILARITY_TREND
+a TREND analysis of COVID19 datasets 
