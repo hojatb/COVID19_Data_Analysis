@@ -56,4 +56,8 @@ This application consist of three python files that must be copied into root dir
 - _ **HeatMap.py** _
 - _ **input1.py** _
 
+**Author:**
+Hojat Behrooz 
+- **hojatb@gmail.com** 
+
  
