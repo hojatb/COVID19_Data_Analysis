@@ -1,5 +1,4 @@
-# ANALYZING **COVID19** DATASETS BY USING THE CORRELATION COEFFICIENT FACTOR
-
+# ANALYZING **COVID19** DATASETS with Correlation, Vector AutoRegression, and CNN-LSTM
 **Introduction**
 
 This project tries to analyze **COVID19** virus spread data around the globe and the US separately. It seeks to find some meaningful relationship between its timely trends in different regions. By this measure, compare them to each other and find out how their behavior is different or similar to the other areas. Also, by finding similar behavioral trends predict the future behavior of the regions that the virus spread starts later. Feel free to use the application for the research purpose, and if it is useful, please reference this repository as the source.
@@ -55,6 +54,8 @@ This application consist of three python files that must be copied into root dir
 - _ **Trend\_Similarity.py** _
 - _ **HeatMap.py** _
 - _ **input1.py** _
+- _ **Multi\_Variance\_ts.py** _
+- _ **Multivariate\_LSTM.py** _
 
 **Author:**
 Hojat Behrooz 
