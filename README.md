@@ -62,5 +62,5 @@ Hojat Behrooz
 - **hojatb@gmail.com** 
 
 
-for more details about the program you can read file "Program documatation.docx" in main dorectory.
+for more details about the program you can read file "**Program documatation.docx**" in main dorectory.
  
