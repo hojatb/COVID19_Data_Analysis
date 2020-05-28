@@ -46,11 +46,11 @@ url_death_global = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/ma
 url_death_US ='https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_US.csv'
 url_confirmed_US ='https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_US.csv'
  
-#minimum amount that  be considered 0 after normalization data this only consider for 
+#minimum amount that ignore after normalization data this only consider for 
 # starting and ending of the dataset.
 epsilon = 0.005
 #minimum percent of the total cases for one region to be considered precious data it 
-# is compare he maximmum cases over the total case in all region and if this is biger than
+# is compare he maximmum cases over the total case in all region and if this is bigger than
 # epi it means this data set is precious
 epi = 0.0001
 
@@ -89,6 +89,7 @@ list_not_trimed=[]
 list_starts=[]
 list_ends=[]
 NAME=[]
+raw_data=[]
 data= np.array(Y)
 num_region = len(data)
 # calculating the total number of casea in whole domain from last row 
@@ -136,6 +137,7 @@ while( row<num_region):
         amax=epi
     if(precious):   
         NAME.append(NAMET[row])
+        raw_data.append(data[row])
         list_not_trimed.append(y_diff_origin)
         list_trimed.append(y_diff)
         list_starts.append(start)
@@ -155,6 +157,7 @@ normal_maxT = list_maxT/maxT
 size= len(list_trimed)
 #matrix of the correlation cofficent of regions data
 sd_matrix = np.zeros(shape=(size,size))
+p_matrix =np.zeros(shape=(size,size))
 #matrix of the Maximal Information Coefficient
 #https://www.freecodecamp.org/news/how-machines-make-predictions-finding-correlations-in-complex-data-dfd9f0d87889/
 
@@ -163,7 +166,8 @@ mic_matrix= np.zeros(shape=(size,size))
 sort_sd =  np.zeros(shape=(size,size))
 # matrix of index of each elements that show the sorted matrix elements related to which index
 sort_sd_index =  np.zeros(shape=(size,size))
-
+sort_p=np.zeros(shape=(size,size))
+sort_p_index=np.zeros(shape=(size,size))
 
 #this part calculate the correlation coefficent factor matrix for data set 
 # and save it in a sd_matrix. a sorted version of this matrix that sort the it  
@@ -192,14 +196,19 @@ for i in range(0,size):
             sd_matrix[i,j]=0
         else:
             sd_matrix[i,j]=np.around(corr,1)
+        p_matrix[i,j]=p_value
         mic_matrix[i,j]=mic
-        if(mic_matrix[i,j]>.9 and abs(sd_matrix[i,j])<.1 ):
-            print(NAME[i],NAME[j],"have non liner relation with Mci:",
-                  mic_matrix[i,j],",CORR:",sd_matrix[i,j])
-
+#        if(mic_matrix[i,j]>.9 and abs(sd_matrix[i,j])<.1 ):
+#            print(NAME[i],NAME[j],"have non liner relation with Mic:",
+#                  mic_matrix[i,j],",CORR:",sd_matrix[i,j])
+        if(abs(sd_matrix[i,j])>.5 and p_matrix[i,j]>0.05):
+            print(NAME[i],NAME[j],"have H0 null not prove",
+                  p_matrix[i,j],",CORR:",sd_matrix[i,j])
 for i in range(0,size):
         sort_sd_index[i,:]=np.argsort(sd_matrix[i,:])[::-1]
         sort_sd[i,:]=np.sort(sd_matrix[i,:])[::-1]
+        sort_p_index[i,:]=np.argsort(p_matrix[i,:])[::-1]
+        sort_p[i,:]=np.sort(p_matrix[i,:])[::-1]        
 #plot itterations of similar ones to consider:
 #calculate weighted average correlation factor for each territory
 average_corr(mic_matrix,sd_matrix,NAME,dataset_type, \
@@ -213,6 +222,43 @@ corr_matrix(mic_matrix,list_precious,NAME,dataset_type,"MIC")
 
 
 consider= input_consider(NAME)
+list_compare=[]
+list_compare_index=[]
+cstart=int(list_starts[consider])
+cend=int(list_ends[i]) 
+consider_data=raw_data[consider][cstart:cend]
+lenc=len(consider_data)
+maxd=0
+for i in range(len(list_trimed)):
+    cstart=int(list_starts[i])
+    cend=int(list_ends[i])    
+    comp_data=raw_data[i][cstart:cend]    
+    lencomp=len(comp_data)
+    if (lencomp>maxd):maxd=lencomp
+    if (lenc<=lencomp and i!=consider):
+        list_compare.append(comp_data[:lenc])
+        list_compare_index.append(i)
+X=np.zeros(shape=(lenc,len(list_compare_index)))
+X_pre=np.zeros(shape=(maxd,len(list_compare_index)))
+X_pre[:,:]=np.nan
+for i in range(len(list_compare_index)):
+    X[:,i]=list_compare[i]
+    ind=list_compare_index[i]
+    cstart=int(list_starts[ind])
+    cend=int(list_ends[ind])    
+    comp_data=raw_data[ind][cstart:cend]    
+    X_pre[:len(comp_data),i]=comp_data
+
+y=consider_data
+
+
+#test_XGboost(list_compare,list_trimed[conside])
+
+
+
+
+
+
 
 dot=[a * b for a, b in zip(list_complete, list_precious)]
 pr_comp=dot.count(2)
@@ -280,7 +326,8 @@ else:
         max_comp=max(y)
         max_base= max(y1)
         y=y*max_base/max_comp 
-        for i in range(1,len(y)):y[i]+=y[i-1]
+        for i in range(1,len(y)):
+            y[i]+=y[i-1]
         now = datetime.strptime(first_date , '%m/%d/%y') + \
                                 dt.timedelta(days=int(start))
         then = now + dt.timedelta(days=int(len(y)))
@@ -299,7 +346,8 @@ else:
         days = mdates.drange(now,then ,dt.timedelta(days=1))   
         plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%m/%d/%y'))
         plt.gca().xaxis.set_major_locator(mdates.DayLocator(interval=1))
-        for i in range(1,len(y1)):y1[i]+=y1[i-1]
+        for i in range(1,len(y1)):
+            y1[i]+=y1[i-1]
         ax2.plot(days,y1, label='%s real data max cases:%d' \
                  %(c_name,list_maxT[consider]))    
         plt.gcf().autofmt_xdate()
@@ -335,7 +383,7 @@ for ii in range(size):
         ymax= [ymax if ymax>np.max(y) else np.max(y)]
         ax1.plot(x, y, label=('{0:<20s} -days:{1:>3d} Max:{2:>6d} Sim:{3:>1.2f}'.format(c_name, \
                                                  len(y),int(list_maxT[rr1]),
-                                                 int(sort_sd[consider,ii+1]))))
+                                                 sd_matrix[consider,rr1])))
 #ax1.set_ylim(0,ymax)
 ax1.legend(loc='upper left',fontsize=16)
 ax1.grid(True)

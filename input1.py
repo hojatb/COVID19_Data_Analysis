@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 import os 
 import sys 
+from statsmodels.tsa.stattools import adfuller
+
 US_DEATH=0  
 US_CONFIRMED =1  
 GLOBAL_DEATH=2
@@ -15,6 +17,152 @@ url_death_global = 'https://raw.githubusercontent.com/CSSEGISandData/COVID-19/ma
 url_death_US ='https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_US.csv'
 url_confirmed_US ='https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_US.csv'
 look='https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/UID_ISO_FIPS_LookUp_Table.csv'
+weights_file='weights/test.csv'
+def wm(l1,l2,w):
+    sw=0
+    for i in range(len(l1)):
+        sw=w[i]*np.abs(l1[i]-l2[i])
+    sw=sw/len(l1)
+    return(sw)   
+def mean_t(l1,l2):
+    
+    absv=np.abs(l1 - l2)
+    for i in range(len(l1)):
+        if l1[i]==0:
+            if l2[i]==0: absv[i]=0
+            else: absv[i]=absv[i]/l2[i]
+        else:
+            absv[i]=absv[i]/l1[i]
+    return(np.mean(absv))
+np.seterr(divide='ignore')
+
+def ma_m(m,n):
+    m1=np.zeros(shape=m.shape)
+    for i in range(m.shape[1]):
+        m1[:,i]=moving_average(m[:,i],n)
+    return(m1)
+def Uma_m(m,n):
+    m1=np.zeros(shape=m.shape)
+    for i in range(m.shape[1]):
+        m1[:,i]=Umoving_average(m[:,i],n)
+    return(m1)
+        
+#diffrential function                 
+def dif(d):
+ return([d[i] if i <1 else d[i]-d[i-1] for i in range(len(d))])                  
+def dif_m(m):
+    m1=np.zeros(shape=m.shape)
+    for i in range(m.shape[1]):
+        m1[:,i]=dif(m[:,i])
+    return(m1)
+def integ(d):
+     return([np.sum(d[0:i+1]) for i in range(len(d))])
+def integ_m(m):
+    m1=np.zeros(shape=m.shape)
+    for i in range(m.shape[1]):
+        m1[:,i]=integ(m[:,i]) 
+    return(m1)
+def integ_level(m,l):
+    if(l==0):
+        return(m)
+    else: 
+        return(integ_m(integ_level(m,l-1)))
+               
+def logn_f(m):
+    m1=np.zeros(shape=m.shape)
+    con=np.min(m)
+    if(con>0):con=0
+    con=-con+1.0
+    for i in range(m.shape[0]):
+        for j in range(m.shape[1]):
+            m1[i,j]=((np.log(m[i,j]+con))**.5)
+    return(m1,con)
+def exp_f(m,con):
+    m1=np.zeros(shape=m.shape)
+    for i in range(m.shape[0]):
+        for j in range(m.shape[1]):
+            m1[i,j]=np.exp(((m[i,j])**2))-con
+    return(m1)
+def normalize(Y):
+    normal_table=Y[:,-1:].flatten()
+    y=Y.astype('float64')/normal_table
+    return(y,normal_table)
+Alpha=.05 
+def adf_test(ts, signif):
+    dftest = adfuller(ts, autolag='AIC')
+    adf = pd.Series(dftest[0:4], index=['Test Statistic','p-value','# Lags','# Observations'])
+    for key,value in dftest[4].items():
+       adf['Critical Value (%s)'%key] = value
+#    print (adf)
+    
+    p = adf['p-value']
+    # if p <= signif:
+    #     print(f" Series is Stationary")
+    # else:
+    #     print(f" Series is Non-Stationary")
+                    
+    return(float(p))
+# calculating weights based on the popullation
+#https://pandas.pydata.org/pandas-docs/stable/getting_started/intro_tutorials/03_subset_data.html
+def make_weights(NAME,dataset_type):
+    w=[]
+    tbl= pd.read_csv(look)
+    for n in iter(NAME):        
+        if (dataset_type<2 ):
+            p=tbl[(tbl['Country_Region']=='US') & 
+                  (tbl['Admin2'].isna()) & (tbl['Province_State']==n)]['Population'].values[0]            
+        else:
+            if(np.sum([tbl['Combined_Key']==n])):
+                p=tbl[tbl['Combined_Key']==n]['Population'].values[0]
+            elif(np.sum([tbl['Province_State']==n])):
+                  p=  tbl[tbl['Province_State']==n]['Population'].values[0]
+        p=1/np.log(p+1)
+        if((dataset_type==US_DEATH) or (dataset_type==GLOBAL_DEATH)):
+            p=10*p
+        w.append(p)   
+
+    return(w)
+
+
+def read_weights(NAME,dataset_type):
+    url=weights_file
+    dataset = pd.read_csv(url)
+    weights=[]
+    for n in iter(NAME):
+        w=0
+        if(n in dataset['Country_Region'].values) or (n in dataset['Province_State'].values):
+            
+            if (dataset_type ==GLOBAL_CONFRIRMED):
+                cond=np.array(dataset['Country_Region']==n) &\
+                    np.array(dataset['County']!=dataset['County']) &\
+                    np.array(dataset['Province_State']!=dataset['Province_State']) &\
+                         np.array(dataset['Target']=='ConfirmedCases')
+                if(np.sum(cond)):          
+                    w=dataset[cond]['Weight'].iloc[0]
+            elif(dataset_type ==GLOBAL_DEATH):
+                cond=np.array(dataset['Country_Region']==n) & \
+                    np.array(dataset['County']!=dataset['County']) &\
+                    np.array(dataset['Province_State']!=dataset['Province_State']) &\
+                    np.array(dataset['Target']=='Fatalities')
+                if(np.sum(cond)):
+                    w=dataset[cond]['Weight'].iloc[0]
+            elif(dataset_type ==US_CONFIRMED):
+                cond=np.array(dataset['Province_State']==n) &\
+                    np.array(dataset['County']!=dataset['County']) &\
+                    np.array(dataset['Country_Region']=='US') &\
+                    np.array(dataset['Target']=='Fatalities')
+                if(np.sum(cond)):
+                    w=dataset[cond]['Weight'].iloc[0]
+            elif(dataset_type ==US_DEATH):
+                cond=np.array(dataset['Province_State']==n) &\
+                          np.array(dataset['County']!=dataset['County']) &\
+                          np.array(dataset['Country_Region']=='US') &\
+                          (dataset['Target']=='Fatalities')
+                if(np.sum(cond)):
+                    w=dataset[cond]['Weight'].iloc[0]
+        weights.append(w)
+        
+    return(weights)
 #this function get a list1 a set of the numbers and in n as int positive number a input
 # it returns a moving average of n items of list1 and return the result
 # the diffrent is the lenght of list1 and return list are same
@@ -22,14 +170,29 @@ look='https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covi
 # continuation of it , then calculate the moving average until the lenIlist1)
 # then the result has the same len as input  
 def moving_average(list1,n):
+    list2=np.zeros(len(list1)+n-1)
+    list2[n-1:]=list1
     nlist=np.zeros(len(list1))
-    if(len(list1)<=n):
-        for i in range(len(list1)):
-            nlist[i]=np.average(list1)
-    else:
-        for i in range (len(list1)-n+1):
-            nlist[i+n-1]=np.average(list1[i:i+n])
+    for i in range(len(list1)):
+        nlist[i]=np.average(list2[i:i+n])
+    # if(len(list1)<=n):
+    #     for i in range(len(list1)):
+    #         nlist[i]=np.average(list1)
+    # else:
+    #     for i in range (len(list1)-n+1):
+    #         nlist[i+n-1]=np.average(list1[i:i+n])
     return nlist   
+def Umoving_average(list1,n):
+    list2=np.zeros(len(list1))
+    for i in range(len(list1)):
+        if i == 0: list2[i]=list1[i]*n
+        else: 
+            if(i-n+1>=0):j=i-n+1
+            else:j=0
+            list2[i]=(list1[i]-(sum(list2[j:i])*1.0/n))*n
+    return(list2)
+            
+        
 # this function get a list as input and delete the trial zeros from start and ends of the
 # list and return the result with the starting and ending point of the first nonzero in main
 # list .if the whole list is zero then return null
@@ -104,7 +267,7 @@ def corr_matrix(sd_matrix,list_precious,NAME,dataset_type,TYPE):
                     f.write(",") 
                     f.write(str(s))
                 f.write("\n")
-
+    
                 
               
 #Write the MIC and CORR Matrix average data in csv file              
@@ -248,6 +411,8 @@ def input_data():
             tmp=dataset[dataset['Country/Region']=='Diamond Princess'].index[0]
             dataset.loc[tmp,'Province/State']='Diamond Princess'
             dataset.loc[tmp,'Country/Region']='Canada'
+    else:
+        dataset=dataset[dataset['Province_State']!='Diamond Princess']
     data= dataset.to_numpy()
     if (dataset_type ==GLOBAL_CONFRIRMED or dataset_type ==GLOBAL_DEATH):   
         last_date= header[-1:]
@@ -326,6 +491,8 @@ def input_data():
     # print( "data is from",first_date," until", last_date)  
     last_date=last_date[0] 
     return dataset_type,flatten,NAME,Y,last_date,first_date  
+
+
 
 def input_consider(NAME):
     while (1):
