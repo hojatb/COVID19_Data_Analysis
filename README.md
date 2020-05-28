@@ -51,11 +51,11 @@ Look = &#39;https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/css
 
 This application consist of three python files that must be copied into root directory:
 
-- _ **Trend\_Similarity.py** _
-- _ **HeatMap.py** _
-- _ **input1.py** _
-- _ **Multi\_Variance\_ts.py** _
-- _ **Multivariate\_LSTM.py** _
+-  **Trend\_Similarity.py** 
+-  **HeatMap.py** 
+-  **input1.py** 
+-  **Multi\_Variance\_ts.py** 
+-  **Multivariate\_LSTM.py** 
 
 **Author:**
 Hojat Behrooz 
